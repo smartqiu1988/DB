@@ -1,0 +1,105 @@
+FATAL: data directory "/opt/pg/data" has group or world access DETAIL: Permissions should be u=rwx (0700).
+解决方法：
+chmod 700 -R /var/lib/postgresql/data
+
+
+
+主库：
+host    replication     all             0.0.0.0/0               md5
+
+listen_addresses = '*'                     
+port = 5432
+max_connections = 100
+superuser_reserved_connections = 10
+full_page_writes = on
+wal_log_hints = off
+max_wal_senders = 50
+hot_standby = on
+log_destination = 'csvlog'
+logging_collector = on
+log_directory = 'log'
+log_filename = 'postgresql-%Y-%m-%d_%H%M%S'
+log_rotation_age = 1d
+log_rotation_size = 10MB
+log_statement = 'mod'
+log_timezone = 'PRC'
+timezone = 'PRC'
+unix_socket_directories = '/tmp'
+shared_buffers = 512MB
+temp_buffers = 16MB
+work_mem = 32MB
+effective_cache_size = 2GB
+maintenance_work_mem = 128MB
+#max_stack_depth = 2MB
+dynamic_shared_memory_type = posix
+## PITR
+full_page_writes = on
+wal_buffers = 16MB
+wal_writer_delay = 200ms
+commit_delay = 0
+commit_siblings = 5
+wal_level = replica
+archive_mode = on
+archive_command = 'test ! -f /data/pgdata/archivedir/%f && cp %p /data/pgdata/archivedir/%f'
+archive_timeout = 60s
+eof
+## 启动数据库
+pg_ctl -D /data/pgdata/data -l /data/pgdata/data/serverlog start
+## 创建用户进行流复制连接
+psql -U postgres -c "ALTER USER postgres WITH PASSWORD 'postgres';"
+psql -U postgres -c "CREATE USER  repl WITH PASSWORD 'postgres' REPLICATION;"
+
+
+
+
+备库中执行 备份主库基础数据
+pg_basebackup -h 172.22.23.161 -p 5432 -U repl  -Fp -Xs -Pv -R -D /data/pgdata
+
+
+
+
+
+
+备库
+
+listen_addresses = '* '
+2, wal_level = hot_standby
+3, max_connections = xxx, # 一般比主库大一些.
+4,hot_standby = on
+5, max_standby_streaming_delay = 30s
+6. wal_receiver_status_interval = 10s
+7, hot_standby_feedback = on # 如果有错误的数据复制,是否向 主进行范例.
+
+### 在postgre.auto.conf 添加 application_name =slave1,配置如下
+primary_conninfo = 'application_name=slave1 user=repl passfile=''/home/postgres/.pgpass'' host=192.168.3.62 port=5432 sslmode=prefer sslcompression=0 gssencmode=prefer krbsrvname=postgres target_session_attrs=any'
+
+
+[postgres@pgdb2 pgdata]$ cat standby.signal
+standby_mode='on'
+
+
+
+## 启动备库
+pg_ctl -D /data/pgdata/data start
+
+
+
+定义对wal进行归档的命令。
+当archive_mode配置参数启用并且archive_command配置参数是空字符串时，wal archiving暂时被禁用，但是pg会继续积累wal segment文件。archive_command参数值设置为/bin/true会禁用归档，但这样会导致wal文件归档中断，归档中断是无法进行归档恢复的，请注意这一点。
+使用举例如下：
+archive_command = 'test ! -f /mnt/server/archivedir/%f && cp %p /mnt/server/archivedir/%f'  # Unix
+archive_command = 'copy "%p" "C:\\server\\archivedir\\%f"'  # Windows
+退出码是零代表本命令正常运行。
+本参数可以在postgresql.conf或者server command line设置。
+
+
+
+查看
+
+postgres=# select client_addr,usename,backend_start,application_name,sync_state,sync_priority FROM pg_stat_replication;
+  client_addr  | usename |         backend_start         | application_name | sync_state | sync_priority
+---------------+---------+-------------------------------+------------------+------------+---------------
+ 172.22.23.162 | repl    | 2021-03-25 16:07:28.662777+08 | standby1         | async      |             0
+
+
+
