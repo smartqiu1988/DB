@@ -96,6 +96,32 @@ archive_command = 'copy "%p" "C:\\server\\archivedir\\%f"'  # Windows
 
 查看
 
+postgres=# \d pg_stat_replication;
+                    View "pg_catalog.pg_stat_replication"
+      Column      |           Type           | Collation | Nullable | Default
+------------------+--------------------------+-----------+----------+---------
+ pid              | integer                  |           |          |
+ usesysid         | oid                      |           |          |
+ usename          | name                     |           |          |
+ application_name | text                     |           |          |
+ client_addr      | inet                     |           |          |
+ client_hostname  | text                     |           |          |
+ client_port      | integer                  |           |          |
+ backend_start    | timestamp with time zone |           |          |
+ backend_xmin     | xid                      |           |          |
+ state            | text                     |           |          |
+ sent_lsn         | pg_lsn                   |           |          |
+ write_lsn        | pg_lsn                   |           |          |
+ flush_lsn        | pg_lsn                   |           |          |
+ replay_lsn       | pg_lsn                   |           |          |
+ write_lag        | interval                 |           |          |
+ flush_lag        | interval                 |           |          |
+ replay_lag       | interval                 |           |          |
+ sync_priority    | integer                  |           |          |
+ sync_state       | text                     |           |          |
+ reply_time       | timestamp with time zone |           |          |
+
+
 postgres=# select client_addr,usename,backend_start,application_name,sync_state,sync_priority FROM pg_stat_replication;
   client_addr  | usename |         backend_start         | application_name | sync_state | sync_priority
 ---------------+---------+-------------------------------+------------------+------------+---------------
